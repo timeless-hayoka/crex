@@ -13,6 +13,6 @@ PSC scaled engine validation for DRIFT V4.
 ## Quick checks
 
 ```bash
-python -m unittest discover -s tests
-python scripts/psc_scaled_validation.py --no-figure
+python3 -m unittest discover -s tests
+python3 scripts/psc_scaled_validation.py --no-figure
 ```
