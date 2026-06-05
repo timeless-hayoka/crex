@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from core.cognitive_governor import CognitiveGovernor
+from scripts.cognitive_governor_measurements import run_measurement
 
 
 class CognitiveGovernorTests(unittest.TestCase):
@@ -77,6 +78,13 @@ class CognitiveGovernorTests(unittest.TestCase):
         self.assertAlmostEqual(alpha, 0.00003, places=8)
         self.assertEqual(measurements.intervention_failures, 1)
         self.assertEqual(measurements.fitted_alpha, alpha)
+
+    def test_measurement_runner_reports_positive_gate_savings(self):
+        measurements = run_measurement(seed=7, turns=45)
+
+        self.assertGreater(measurements["counterfactual_gate_savings"], 0.0)
+        self.assertGreater(measurements["mean_gated_drain"], 0.0)
+        self.assertLess(measurements["fitted_alpha_error"], 0.000002)
 
 
 if __name__ == "__main__":

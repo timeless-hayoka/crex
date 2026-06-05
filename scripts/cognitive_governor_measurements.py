@@ -25,37 +25,43 @@ def run_measurement(seed: int = 42, turns: int = 80) -> dict:
 
     rng = np.random.default_rng(seed)
     true_alpha = 0.000025
-    base_drain = 0.002
+    noise_sigma = 0.00025
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         log_path = Path(tmp_dir) / "governor_measurements.jsonl"
         governor = CognitiveGovernor(calibration_log=log_path)
-        energy = 0.82
 
         # Calibration block: keep energy normal so no token gate is applied.
         for turn in range(1, 31):
+            energy = 0.82
             requested_len = int(rng.integers(250, 1200))
             gate = governor.apply(energy, turn=turn)
             response_len = min(requested_len, gate.max_tokens)
-            drain = base_drain + true_alpha * response_len + float(rng.normal(0.0, 0.0004))
-            prev = energy
-            energy = max(0.32, energy - drain + 0.018)
-            governor.record_turn(prev, energy, response_len=response_len, gate_result=gate)
+            drain = true_alpha * response_len + float(rng.normal(0.0, noise_sigma))
+            governor.record_turn(
+                energy,
+                max(0.0, energy - drain),
+                response_len=response_len,
+                gate_result=gate,
+            )
 
         fitted_alpha = governor.calibrate_alpha(min_samples=20)
 
-        # Stress block: energy falls into LOW_POWER/CRITICAL and token gates bind.
-        energy = 0.28
+        # Stress block: sampled energy falls into LOW_POWER/CRITICAL and token gates bind.
         ungated_counterfactual = []
         for turn in range(31, turns + 1):
+            energy = 0.24 if turn % 5 else 0.12
             requested_len = int(rng.integers(600, 1300))
             gate = governor.apply(energy, turn=turn)
             response_len = min(requested_len, gate.max_tokens)
-            gated_drain = base_drain + true_alpha * response_len + float(rng.normal(0.0, 0.0004))
-            ungated_counterfactual.append(base_drain + true_alpha * min(requested_len, 1000))
-            prev = energy
-            energy = max(0.05, min(0.34, energy - gated_drain + 0.016))
-            governor.record_turn(prev, energy, response_len=response_len, gate_result=gate)
+            gated_drain = true_alpha * response_len + float(rng.normal(0.0, noise_sigma))
+            ungated_counterfactual.append(true_alpha * min(requested_len, 1000))
+            governor.record_turn(
+                energy,
+                max(0.0, energy - gated_drain),
+                response_len=response_len,
+                gate_result=gate,
+            )
 
         measurements = governor.measurements().to_dict()
         measurements["true_alpha"] = true_alpha
