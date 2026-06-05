@@ -20,8 +20,8 @@ from core.cognitive_governor import CognitiveGovernor  # noqa: E402
 def run_measurement(seed: int = 42, turns: int = 80) -> dict:
     """Run a synthetic closed-loop check with known response-length coupling."""
 
-    if turns < 30:
-        raise ValueError("turns must be at least 30 to include calibration data")
+    if turns <= 30:
+        raise ValueError("turns must be at least 31 to include calibration data")
 
     rng = np.random.default_rng(seed)
     true_alpha = 0.000025
@@ -88,6 +88,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--turns", type=int, default=80)
     args = parser.parse_args()
+
+    if args.turns <= 30:
+        parser.error("turns must be at least 31 to include calibration data")
 
     measurements = run_measurement(seed=args.seed, turns=args.turns)
 

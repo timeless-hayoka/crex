@@ -44,7 +44,7 @@ def _retrieval_count(metadata: Mapping[str, object]) -> int:
 
 def _poor_session_only(metadata: Mapping[str, object]) -> bool:
     poor = metadata.get("poor_session_retrievals", metadata.get("failed_session_retrievals", 0))
-    total = metadata.get("retrieval_count", metadata.get("access_count", 0))
+    total = _retrieval_count(metadata)
     outcome = str(metadata.get("session_outcome", "")).lower()
     success = metadata.get("session_success")
 

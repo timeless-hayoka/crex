@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, Mapping, Optional
 
 
@@ -50,7 +50,10 @@ def build_retrieval_report(
     """Compute repeat-frequency and age-distribution metrics for memories."""
 
     metadata_list = [dict(metadata or {}) for metadata in metadatas]
-    now_ts = (now or datetime.now()).timestamp()
+    now_dt = now or datetime.now()
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    now_ts = now_dt.timestamp()
 
     total_retrievals = 0
     retrieved = 0

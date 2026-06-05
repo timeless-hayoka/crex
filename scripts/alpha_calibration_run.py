@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import tempfile
 
 import numpy as np
 
@@ -26,7 +27,11 @@ def synthetic_trajectory(seed: int = 42, turns: int = 50) -> list[dict[str, obje
         raise ValueError("turns must be at least 20 for calibration")
 
     rng = np.random.default_rng(seed)
-    governor = CognitiveGovernor(calibration_log=Path("/tmp/drift_alpha_calibration.jsonl"))
+    # Create secure temporary file with restrictive permissions
+    fd, temp_path = tempfile.mkstemp(suffix=".jsonl", prefix="drift_alpha_calibration_")
+    import os
+    os.close(fd)  # Close the file descriptor, CognitiveGovernor will open it
+    governor = CognitiveGovernor(calibration_log=Path(temp_path))
     energy = 0.82
     true_alpha = 0.000025
     records = []
@@ -84,7 +89,12 @@ def main() -> None:
             encoding="utf-8",
         )
 
-    result = fit_alpha(records, min_samples=min(20, len(records))).to_dict()
+    # Validate minimum sample size
+    if len(records) < 20:
+        print(f"Error: Insufficient data - only {len(records)} records, need at least 20", file=sys.stderr)
+        sys.exit(1)
+
+    result = fit_alpha(records, min_samples=20).to_dict()
     print("=" * 72)
     print("ALPHA CALIBRATION: delta_energy = alpha * response_len + epsilon")
     print("=" * 72)
