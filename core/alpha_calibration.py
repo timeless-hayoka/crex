@@ -28,7 +28,10 @@ def fit_alpha(records: Iterable[Mapping[str, object]], min_samples: int = 20) ->
     for record in records:
         try:
             response_len = float(record["response_len"])
-            delta_energy = float(record.get("delta_energy", float(record["prev_energy"]) - float(record["new_energy"])))
+            if "delta_energy" in record:
+                delta_energy = float(record["delta_energy"])
+            else:
+                delta_energy = float(record["prev_energy"]) - float(record["new_energy"])
         except (KeyError, TypeError, ValueError):
             continue
         if response_len > 0 and math.isfinite(response_len) and math.isfinite(delta_energy):
