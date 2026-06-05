@@ -51,6 +51,7 @@ def _iter_subsystem_entries(record: Mapping[str, object]):
                 yield str(name), value
             else:
                 yield str(name), {"benefit": value}
+    return
 
     costs = record.get("subsystem_costs_ms")
     if isinstance(costs, Mapping):
@@ -58,6 +59,7 @@ def _iter_subsystem_entries(record: Mapping[str, object]):
         for name, cost in costs.items():
             benefit = benefits.get(name) if isinstance(benefits, Mapping) else None
             yield str(name), {"cost_ms": cost, "benefit": benefit}
+    return
 
     name = record.get("subsystem")
     if name:
