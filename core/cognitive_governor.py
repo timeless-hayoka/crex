@@ -24,6 +24,10 @@ ENERGY_MODES: Dict[str, Dict[str, object]] = {
         "max_tokens": 1000,
         "description": "Full cognitive capacity",
     },
+    "MODERATE": {
+        "max_tokens": 700,
+        "description": "Moderate energy; keep responses bounded",
+    },
     "LOW_POWER": {
         "max_tokens": 400,
         "description": "Conserving; longer responses deferred",
@@ -41,8 +45,23 @@ ENERGY_MODES: Dict[str, Dict[str, object]] = {
 ENERGY_THRESHOLDS = {
     "CRITICAL": (0.00, 0.15),
     "LOW_POWER": (0.15, 0.30),
-    "NORMAL": (0.30, 1.00),
+    "MODERATE": (0.30, 0.50),
+    "NORMAL": (0.50, 1.00),
 }
+
+
+def _calculate_safe_token_limit(current_energy: float) -> int:
+    """Stepped token gate based on current energetic state."""
+
+    if not CognitiveGovernor._valid_energy(current_energy):
+        return int(ENERGY_MODES["HOLD"]["max_tokens"])
+    if current_energy <= 0.15:
+        return int(ENERGY_MODES["CRITICAL"]["max_tokens"])
+    if current_energy <= 0.30:
+        return int(ENERGY_MODES["LOW_POWER"]["max_tokens"])
+    if current_energy <= 0.50:
+        return int(ENERGY_MODES["MODERATE"]["max_tokens"])
+    return int(ENERGY_MODES["NORMAL"]["max_tokens"])
 
 
 @dataclass(frozen=True)
@@ -305,13 +324,13 @@ class CognitiveGovernor:
         if not self._valid_energy(energy):
             return "HOLD"
 
-        if energy >= 1.0:
-            return "NORMAL"
-
-        for mode, (lo, hi) in ENERGY_THRESHOLDS.items():
-            if lo <= energy < hi:
-                return mode
-        return "CRITICAL"
+        if energy <= 0.15:
+            return "CRITICAL"
+        if energy <= 0.30:
+            return "LOW_POWER"
+        if energy <= 0.50:
+            return "MODERATE"
+        return "NORMAL"
 
     def _verify_intervention(self, record: TurnRecord) -> None:
         """Closed-loop check: if gated, was drain below calibrated expectation?"""
@@ -403,11 +422,16 @@ def _self_check() -> bool:
             assert "ENERGY_MIN_REACHED" in r3.interventions
             print(f"  turn 3 [energy=0.10] mode={r3.energy_mode} max_tokens={r3.max_tokens}")
 
-            r4 = gov.apply(current_energy=float("nan"), turn=4)
-            assert r4.energy_mode == "HOLD"
-            assert r4.max_tokens == 80
-            assert "ENERGY_SENSOR_INVALID" in r4.interventions
-            print(f"  turn 4 [energy=nan] mode={r4.energy_mode} max_tokens={r4.max_tokens}")
+            r4 = gov.apply(current_energy=0.45, turn=4)
+            assert r4.energy_mode == "MODERATE"
+            assert r4.max_tokens == 700
+            print(f"  turn 4 [energy=0.45] mode={r4.energy_mode} max_tokens={r4.max_tokens}")
+
+            r5 = gov.apply(current_energy=float("nan"), turn=5)
+            assert r5.energy_mode == "HOLD"
+            assert r5.max_tokens == 80
+            assert "ENERGY_SENSOR_INVALID" in r5.interventions
+            print(f"  turn 5 [energy=nan] mode={r5.energy_mode} max_tokens={r5.max_tokens}")
 
             gov._fitted_alpha = 0.00005
             gov.record_turn(prev_energy=0.80, new_energy=0.79, response_len=1000, gate_result=r1)

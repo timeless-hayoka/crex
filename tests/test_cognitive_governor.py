@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from core.cognitive_governor import CognitiveGovernor
+from core.cognitive_governor import CognitiveGovernor, _calculate_safe_token_limit
 from scripts.cognitive_governor_measurements import run_measurement
 
 
@@ -15,6 +15,7 @@ class CognitiveGovernorTests(unittest.TestCase):
             gov = CognitiveGovernor(calibration_log=Path(tmp_dir) / "calibration.jsonl")
 
             normal = gov.apply(1.0, turn=1)
+            moderate = gov.apply(0.45, turn=2)
             low = gov.apply(0.299, turn=2)
             critical = gov.apply(0.149, turn=3)
             hold = gov.apply(float("nan"), turn=4)
@@ -22,6 +23,8 @@ class CognitiveGovernorTests(unittest.TestCase):
         self.assertEqual(normal.energy_mode, "NORMAL")
         self.assertEqual(normal.max_tokens, 1000)
         self.assertFalse(normal.gate_applied)
+        self.assertEqual(moderate.energy_mode, "MODERATE")
+        self.assertEqual(moderate.max_tokens, 700)
         self.assertEqual(low.energy_mode, "LOW_POWER")
         self.assertEqual(low.max_tokens, 400)
         self.assertIn("TOKEN_GATE", low.interventions)
@@ -30,6 +33,16 @@ class CognitiveGovernorTests(unittest.TestCase):
         self.assertEqual(hold.energy_mode, "HOLD")
         self.assertEqual(hold.max_tokens, 80)
         self.assertIn("ENERGY_SENSOR_INVALID", hold.interventions)
+
+    def test_safe_token_limit_self_check_thresholds(self):
+        self.assertEqual(_calculate_safe_token_limit(0.10), 150)
+        self.assertEqual(_calculate_safe_token_limit(0.15), 150)
+        self.assertEqual(_calculate_safe_token_limit(0.25), 400)
+        self.assertEqual(_calculate_safe_token_limit(0.30), 400)
+        self.assertEqual(_calculate_safe_token_limit(0.45), 700)
+        self.assertEqual(_calculate_safe_token_limit(0.50), 700)
+        self.assertEqual(_calculate_safe_token_limit(0.80), 1000)
+        self.assertEqual(_calculate_safe_token_limit(float("nan")), 80)
 
     def test_turn_record_log_and_measurements_track_gate_effect(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
