@@ -1,0 +1,3 @@
+{"turn": 1, "subsystems": {"DMU": {"cost_ms": 25, "benefit": 0.82}, "PEDI": {"cost_ms": 3, "benefit": 0.75}, "DII": {"cost_ms": 1}}}
+{"turn": 2, "subsystem_costs_ms": {"DMU": 28, "Homeostasis": 4}, "subsystem_benefits": {"DMU": 0.78, "Homeostasis": 0.45}}
+{"turn": 3, "subsystem": "SelfModify", "cost_ms": 100, "benefit_score": 0.10}
