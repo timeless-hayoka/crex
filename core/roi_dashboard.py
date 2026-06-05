@@ -109,7 +109,10 @@ def load_jsonl_records(path: Path) -> list[Mapping[str, object]]:
     if not text:
         return []
     if text[0] in "[{":
-        data = json.loads(text)
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            data = None
         if isinstance(data, list):
             return data
         if isinstance(data, dict):
