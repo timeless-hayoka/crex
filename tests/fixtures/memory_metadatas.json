@@ -1,0 +1,24 @@
+{
+  "metadatas": [
+    {
+      "memory_id": "recent",
+      "last_accessed": 1780531200,
+      "retrieval_count": 2
+    },
+    {
+      "memory_id": "stale",
+      "last_accessed": 1717200000,
+      "retrieval_count": 1
+    },
+    {
+      "memory_id": "missing",
+      "retrieval_count": 0
+    },
+    {
+      "memory_id": "poor",
+      "last_accessed": 1780531200,
+      "retrieval_count": 8,
+      "poor_session_retrievals": 8
+    }
+  ]
+}
