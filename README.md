@@ -18,6 +18,8 @@ PSC scaled engine validation for DRIFT V4.
   age distribution metrics.
 - `core/roi_dashboard.py` - subsystem cost/benefit aggregation for
   trajectory-style records.
+- `core/local_moe.py` - deterministic local sparse MoE router with top-K
+  expert activation and speculative lookahead math.
 - `scripts/psc_scaled_validation.py` - simulation and scale benchmark for the
   three V4 upgrades.
 - `scripts/cognitive_governor_measurements.py` - synthetic closed-loop
@@ -29,6 +31,7 @@ PSC scaled engine validation for DRIFT V4.
 - `scripts/retrieval_evaluation.py` - ChromaDB metadata report for retrieval
   repeat frequency and memory age distribution.
 - `scripts/roi_dashboard.py` - JSON/JSONL subsystem ROI summary.
+- `scripts/local_moe_verify.py` - local MoE routing and lookahead self-check.
 - `tests/test_psc_scaled.py` - focused standard-library unit tests.
 
 ## Quick checks
@@ -42,4 +45,5 @@ python3 scripts/cognitive_governor_measurements.py
 python3 scripts/memory_lifecycle_query.py --metadata-json path/to/metadatas.json
 python3 scripts/retrieval_evaluation.py --metadata-json path/to/metadatas.json
 python3 scripts/roi_dashboard.py path/to/trajectory_records.jsonl
+python3 scripts/local_moe_verify.py
 ```
