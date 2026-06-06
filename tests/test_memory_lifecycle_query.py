@@ -1,6 +1,6 @@
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from scripts.memory_lifecycle_query import (
@@ -38,6 +38,27 @@ class MemoryLifecycleQueryTests(unittest.TestCase):
         self.assertEqual(report["frequent_only_poor_session_count"], 1)
         self.assertEqual(report["stale_ids"], ["stale"])
         self.assertEqual(report["missing_last_accessed_ids"], ["missing"])
+
+    def test_naive_iso_last_accessed_is_treated_as_utc(self):
+        report = build_lifecycle_report(
+            [
+                {
+                    "memory_id": "recent-naive",
+                    "last_accessed": "2026-06-03T12:00:00",
+                    "retrieval_count": 1,
+                },
+                {
+                    "memory_id": "stale-aware",
+                    "last_accessed": "2026-04-01T12:00:00+00:00",
+                    "retrieval_count": 1,
+                },
+            ],
+            now=datetime(2026, 6, 5, 12, 0, tzinfo=timezone.utc),
+            stale_days=30,
+        )
+
+        self.assertEqual(report["stale_ids"], ["stale-aware"])
+        self.assertEqual(report["missing_last_accessed_count"], 0)
 
     def test_load_json_accepts_chroma_style_metadatas_object(self):
         with tempfile.TemporaryDirectory() as tmp_dir:

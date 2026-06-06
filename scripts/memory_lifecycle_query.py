@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import sys
@@ -26,9 +26,15 @@ def _as_timestamp(value: object) -> Optional[float]:
     except ValueError:
         pass
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+        return _to_utc(datetime.fromisoformat(text.replace("Z", "+00:00"))).timestamp()
     except ValueError:
         return None
+
+
+def _to_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _retrieval_count(metadata: Mapping[str, object]) -> int:
@@ -68,7 +74,7 @@ def build_lifecycle_report(
     """Build stale, missing-access, and poor-session retrieval counts."""
 
     metadata_list = [dict(metadata or {}) for metadata in metadatas]
-    now = now or datetime.now()
+    now = _to_utc(now or datetime.now(timezone.utc))
     cutoff = (now - timedelta(days=stale_days)).timestamp()
 
     missing_last_accessed = []
