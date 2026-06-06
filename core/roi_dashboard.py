@@ -44,24 +44,35 @@ def _benefit_label(score: float | None) -> str:
 
 
 def _iter_subsystem_entries(record: Mapping[str, object]):
+    seen = set()
     subsystems = record.get("subsystems")
     if isinstance(subsystems, Mapping):
         for name, value in subsystems.items():
+            subsystem = str(name)
+            if subsystem in seen:
+                continue
+            seen.add(subsystem)
             if isinstance(value, Mapping):
-                yield str(name), value
+                yield subsystem, value
             else:
-                yield str(name), {"benefit": value}
+                yield subsystem, {"benefit": value}
 
     costs = record.get("subsystem_costs_ms")
     if isinstance(costs, Mapping):
         benefits = record.get("subsystem_benefits", {})
         for name, cost in costs.items():
+            subsystem = str(name)
+            if subsystem in seen:
+                continue
+            seen.add(subsystem)
             benefit = benefits.get(name) if isinstance(benefits, Mapping) else None
-            yield str(name), {"cost_ms": cost, "benefit": benefit}
+            yield subsystem, {"cost_ms": cost, "benefit": benefit}
 
     name = record.get("subsystem")
     if name:
-        yield str(name), record
+        subsystem = str(name)
+        if subsystem not in seen:
+            yield subsystem, record
 
 
 def build_roi_dashboard(records: Iterable[Mapping[str, object]]) -> list[dict[str, object]]:

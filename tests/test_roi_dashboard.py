@@ -39,6 +39,26 @@ class ROIDashboardTests(unittest.TestCase):
 
         self.assertEqual([record["subsystem"] for record in records], ["DMU", "PEDI"])
 
+    def test_mixed_shape_record_yields_each_subsystem_once(self):
+        rows = build_roi_dashboard(
+            [
+                {
+                    "subsystems": {"DMU": {"cost_ms": 20, "benefit": 0.8}},
+                    "subsystem_costs_ms": {"DMU": 100, "PEDI": 3},
+                    "subsystem_benefits": {"DMU": 0.1, "PEDI": 0.9},
+                    "subsystem": "DMU",
+                    "cost_ms": 200,
+                    "benefit_score": 0.0,
+                }
+            ]
+        )
+        by_name = {row["subsystem"]: row for row in rows}
+
+        self.assertEqual(by_name["DMU"]["samples"], 1)
+        self.assertEqual(by_name["DMU"]["mean_cost_ms"], 20.0)
+        self.assertEqual(by_name["DMU"]["mean_benefit"], 0.8)
+        self.assertEqual(by_name["PEDI"]["mean_cost_ms"], 3.0)
+
 
 if __name__ == "__main__":
     unittest.main()
