@@ -23,6 +23,11 @@ from core.local_moe import (  # noqa: E402
 
 
 def main() -> None:
+    """
+    Command-line entry point that verifies a local sparse MoE routing pipeline, runs a routing pass, and prints a JSON report.
+    
+    Parses CLI options (experts, k, seed, acceptance-rate, gamma, --use-dii-vector). If run with the default verification configuration (4 experts, k=1, and no --use-dii-vector) the function runs a pipeline check and exits with status 1 on failure. It constructs a LocalMoERouter, builds an input vector either from a DIITracker summary when --use-dii-vector is set or from a fixed array otherwise, routes the vector with the requested `k`, augments the routing result with `execution_counts` and a `speculative_tau` computed from `acceptance-rate` and `gamma`, and prints the resulting JSON report to stdout.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--experts", type=int, default=4)
     parser.add_argument("--k", type=int, default=1)

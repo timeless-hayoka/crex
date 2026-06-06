@@ -33,9 +33,23 @@ class MoERouteResult:
 
     @property
     def active_fraction(self) -> float:
+        """
+        Return the proportion of available experts that were selected for this routing decision.
+        
+        Returns:
+            float: The ratio active_expert_count / total_experts, or 0.0 if total_experts is zero or falsy.
+        """
         return self.active_expert_count / self.total_experts if self.total_experts else 0.0
 
     def to_dict(self) -> dict[str, object]:
+        """
+        Return a plain dict representation of the MoERouteResult suitable for JSON serialization.
+        
+        The returned dict contains all dataclass fields; the `output` NumPy array is converted to a nested Python list and an `active_fraction` key (float) is added.
+        
+        Returns:
+            dict[str, object]: Mapping of field names to their values with `output` as a list and `active_fraction` included.
+        """
         data = asdict(self)
         data["output"] = self.output.tolist()
         data["active_fraction"] = self.active_fraction
@@ -46,6 +60,19 @@ class ExpertNode:
     """A small local expert module with deterministic weights."""
 
     def __init__(self, expert_id: int, dimension: int = 4, name: str | None = None, seed: int = 0):
+        """
+        Create an expert node with a deterministic random weight matrix and an execution counter.
+        
+        Parameters:
+            expert_id (int): Unique identifier for the expert; used to derive the default name and the RNG seed offset.
+            dimension (int): Size of the square weight matrix; weights shape is (dimension, dimension).
+            name (str | None): Optional explicit name; if omitted, defaults to "expert_{expert_id}".
+            seed (int): Base RNG seed; the expert's RNG is seeded with (seed + expert_id * 9973) to produce deterministic weights.
+        
+        Notes:
+            - Initializes `weights` sampled from a normal distribution with mean 0.0 and stddev 0.5.
+            - Sets `execution_count` to 0.
+        """
         self.expert_id = int(expert_id)
         self.name = name or f"expert_{expert_id}"
         rng = np.random.default_rng(seed + expert_id * 9973)
@@ -53,6 +80,18 @@ class ExpertNode:
         self.execution_count = 0
 
     def process(self, tensor: np.ndarray) -> np.ndarray:
+        """
+        Apply this expert's learned linear transform to the provided input tensor.
+        
+        Parameters:
+        	tensor (np.ndarray): Input array whose trailing dimension matches the expert's configured dimension.
+        
+        Returns:
+        	np.ndarray: The result of multiplying `tensor` by the expert's weight matrix.
+        
+        Notes:
+        	This method increments the expert's internal `execution_count` each time it is called.
+        """
         self.execution_count += 1
         return np.dot(tensor, self.weights)
 
@@ -68,6 +107,20 @@ class LocalMoERouter:
         expert_names: Sequence[str] | None = None,
         seed: int = 42,
     ) -> None:
+        """
+        Initialize the router with a fixed number of deterministic ExpertNode instances and a gate weight matrix.
+        
+        Parameters:
+            num_experts (int): Number of experts to create; must be greater than 0.
+            dimension (int): Dimensionality of input and expert weight matrices; must be greater than 0.
+            expert_names (Sequence[str] | None): Optional sequence of names for the experts. If provided names are fewer than
+                `num_experts`, remaining names are filled as `expert_{index}`. If omitted, DEFAULT_EXPERT_NAMES is used and
+                similarly extended if necessary.
+            seed (int): Seed for deterministic initialization of expert weights and the gate weight generator.
+        
+        Raises:
+            ValueError: If `num_experts` <= 0 or `dimension` <= 0.
+        """
         if num_experts <= 0:
             raise ValueError("num_experts must be positive")
         if dimension <= 0:
@@ -87,7 +140,19 @@ class LocalMoERouter:
         self.gate_weights = rng.normal(0.0, 0.5, size=(self.dimension, self.num_experts))
 
     def route(self, input_vector: np.ndarray | Sequence[Sequence[float]], k: int = 1) -> MoERouteResult:
-        """Route ``input_vector`` through exactly top-k selected experts."""
+        """
+        Selects the top-k experts for the (first) input batch row, runs only those experts, and returns the combined routed output and routing metadata.
+        
+        Parameters:
+            input_vector (np.ndarray | Sequence[Sequence[float]]): A 1-D vector (treated as batch size 1) or a 2-D array shaped (batch, dimension); the second dimension must equal the router's configured dimension.
+            k (int): Number of experts to select (must satisfy 1 <= k <= num_experts).
+        
+        Returns:
+            MoERouteResult: Contains the routed output, indices and names of the chosen experts, their router probabilities, the active expert count, and the total expert count.
+        
+        Raises:
+            ValueError: If `input_vector` does not have shape (batch, dimension) after normalization, or if `k` is outside the valid range.
+        """
 
         vector = np.asarray(input_vector, dtype=np.float64)
         if vector.ndim == 1:
@@ -117,17 +182,45 @@ class LocalMoERouter:
         )
 
     def execution_counts(self) -> dict[str, int]:
+        """
+        Map expert names to their execution counts.
+        
+        Returns:
+            dict[str, int]: A dictionary where keys are expert names and values are the number of times each expert has been executed.
+        """
         return {expert.name: expert.execution_count for expert in self.experts}
 
 
 def _softmax(scores: np.ndarray) -> np.ndarray:
+    """
+    Compute row-wise softmax probabilities for a 2D array.
+    
+    Parameters:
+        scores (np.ndarray): 2D array of raw scores with shape (n_rows, n_cols).
+    
+    Returns:
+        np.ndarray: Array of the same shape as `scores` where each row is transformed into
+        a probability distribution that sums to 1.
+    """
     shifted = scores - np.max(scores, axis=1, keepdims=True)
     exp_scores = np.exp(shifted)
     return exp_scores / exp_scores.sum(axis=1, keepdims=True)
 
 
 def speculative_lookahead_tau(acceptance_rate: float, gamma: int) -> float:
-    """Expected accepted tokens per verifier pass for speculative lookahead."""
+    """
+    Compute the expected number of accepted tokens per verifier pass for speculative lookahead.
+    
+    Parameters:
+        acceptance_rate (float): Probability of a single token being accepted; values are clipped to the range [0.0, 1.0].
+        gamma (int): Number of speculative tokens considered ahead; must be >= 0.
+    
+    Returns:
+        float: Expected number of accepted tokens per verifier pass.
+    
+    Raises:
+        ValueError: If `gamma` is negative.
+    """
 
     if gamma < 0:
         raise ValueError("gamma must be non-negative")
@@ -138,7 +231,19 @@ def speculative_lookahead_tau(acceptance_rate: float, gamma: int) -> float:
 
 
 def vector_from_dii_summary(summary: dict[str, object]) -> np.ndarray:
-    """Build a 4D router vector from DII state for local expert selection."""
+    """
+    Construct a 1×4 router feature vector from a DII summary dictionary.
+    
+    Parameters:
+    	summary (dict[str, object]): Source values for the vector. Recognized keys:
+    		- "current": numeric, used directly (default 0.5)
+    		- "variance": numeric, scaled by 100.0 and clipped to at most 1.0 (default 0.0)
+    		- "samples": numeric, scaled by samples/50.0 and clipped to at most 1.0 (default 0)
+    		- "awake": truthy/falsy, converted to 1.0 if truthy, 0.0 otherwise
+    
+    Returns:
+    	np.ndarray: A shape (1, 4) array: [[current, variance_component, samples_component, awake_flag]].
+    """
 
     current = float(summary.get("current", 0.5))
     variance = float(summary.get("variance", 0.0))
@@ -148,7 +253,19 @@ def vector_from_dii_summary(summary: dict[str, object]) -> np.ndarray:
 
 
 def verify_moe_pipeline() -> bool:
-    """Self-check proving local sparse routing and lookahead math."""
+    """
+    Run a self-check that validates local sparse routing behavior and the speculative lookahead formula.
+    
+    Performs deterministic routing of a fixed sample through a LocalMoERouter (k=1) and verifies:
+    - the router produced an output with the expected shape,
+    - exactly one expert executed (sparse activation),
+    - the speculative lookahead value for alpha=0.8 and gamma=4 exceeds 3.0.
+    
+    The function prints progress and result information. All exceptions are caught; failures are reported and return False.
+    
+    Returns:
+        bool: `True` if all self-check assertions pass, `False` otherwise.
+    """
 
     print("[*] Testing Local MoE Equation Validity...")
     try:

@@ -18,10 +18,28 @@ from core.cognitive_governor import CognitiveGovernor  # noqa: E402
 
 
 def run_measurement(seed: int = 42, turns: int = 80) -> dict:
-    """Run a synthetic closed-loop check with known response-length coupling."""
+    """
+    Simulate a synthetic closed-loop experiment against a CognitiveGovernor and return aggregated measurement statistics and parameter accuracy.
+    
+    Runs a two-phase experiment: a 30-turn calibration phase with fixed energy to fit an internal coupling parameter (`alpha`), then a stress phase (turns 31..turns) with lower energies where token gating may bind. Records per-turn outcomes to a temporary governor log, fits `alpha` from calibration data, computes an ungated counterfactual drain for stress turns, and augments the governor's measurements dictionary with true/fitted alpha values and derived counterfactual metrics.
+    
+    Parameters:
+    	seed (int): RNG seed used for sampling request lengths and noise.
+    	turns (int): Total number of simulated turns (must be at least 31 to include the 30-turn calibration).
+    
+    Returns:
+    	measurements (dict): A dictionary produced by governor.measurements().to_dict() augmented with:
+    		- "true_alpha": the ground-truth alpha used to generate drains.
+    		- "fitted_alpha_error": absolute error of the fitted alpha vs `true_alpha`, or `None`.
+    		- "counterfactual_ungated_stress_drain": mean ungated stress-phase drain (rounded to 8 decimals).
+    		- "counterfactual_gate_savings": difference between the ungated counterfactual and mean gated drain (rounded to 8 decimals), or `None` if mean gated drain is unavailable.
+    
+    Raises:
+    	ValueError: If `turns` is less than 31.
+    """
 
-    if turns < 30:
-        raise ValueError("turns must be at least 30 to include calibration data")
+    if turns <= 30:
+        raise ValueError("turns must be at least 31 to include calibration data")
 
     rng = np.random.default_rng(seed)
     true_alpha = 0.000025
@@ -84,10 +102,18 @@ def run_measurement(seed: int = 42, turns: int = 80) -> dict:
 
 
 def main() -> None:
+    """
+    Command-line entry point that runs the measurement simulation and prints a human-readable report followed by the full JSON results.
+    
+    Parses `--seed` and `--turns` CLI arguments, validates that `turns` is at least 31, invokes `run_measurement` with the parsed values, and prints a formatted summary of key measurement fields (mode distribution, gated/ungated response and drain means, gate savings, intervention failures, and fitted alpha) followed by the complete measurements object as JSON.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--turns", type=int, default=80)
     args = parser.parse_args()
+
+    if args.turns <= 30:
+        parser.error("turns must be at least 31 to include calibration data")
 
     measurements = run_measurement(seed=args.seed, turns=args.turns)
 

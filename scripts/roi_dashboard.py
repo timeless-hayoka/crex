@@ -15,6 +15,11 @@ from core.roi_dashboard import build_roi_dashboard, load_jsonl_records  # noqa: 
 
 
 def main() -> None:
+    """
+    Render a subsystem ROI dashboard from a records file and print a human-readable table followed by the full JSON output.
+    
+    This function parses a single command-line positional argument `records` (a Path to a JSON, JSONL, or trajectory records file), loads the records, builds ROI dashboard rows, prints a formatted table with columns Subsystem, Cost ms, Benefit, ROI/ms, and Label, and then prints the full `rows` object as pretty-printed, sorted JSON. When a row's `mean_benefit` or `roi_per_ms` is `None`, the table shows `unknown` for that value.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("records", type=Path, help="JSON, JSONL, or trajectory records file")
     args = parser.parse_args()

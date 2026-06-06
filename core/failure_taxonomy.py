@@ -71,7 +71,18 @@ _PATTERNS: tuple[tuple[FailureType, tuple[str, ...]], ...] = (
 
 
 def normalize_failure_type(value: object) -> Optional[str]:
-    """Return a canonical failure type value, or ``None`` for empty input."""
+    """
+    Canonicalize an input into a recognized failure taxonomy value.
+    
+    Treats None or an input that is empty after trimming as no value and returns None.
+    If the input matches a defined FailureType value (comparison is case-insensitive after trimming), returns that canonical failure type string. For any other non-empty input, returns the canonical `"unknown"` failure type.
+    
+    Parameters:
+        value (object): Input failure type candidate to normalize.
+    
+    Returns:
+        Optional[str]: The canonical failure type string, or `None` if the input is missing/empty.
+    """
 
     if value is None:
         return None
@@ -90,7 +101,19 @@ def classify_failure(
     latency_seconds: Optional[float] = None,
     timeout_seconds: float = 10.0,
 ) -> Optional[str]:
-    """Classify a raw failure message or turn metrics into a taxonomy value."""
+    """
+    Infers a canonical failure taxonomy label from raw error text and optional latency.
+    
+    Checks latency first: if `latency_seconds` is provided and is greater than or equal to `timeout_seconds`, returns `FailureType.TIMEOUT.value`. Otherwise, lowercases and inspects `raw_text`: returns the first matching `FailureType` from internal pattern mappings when any needle is found. If the text contains any of "error", "exception", "failed", or "traceback" but no specific pattern matched, returns `FailureType.UNKNOWN.value`. If `raw_text` is blank or no indicators are found, returns `None`.
+    
+    Parameters:
+        raw_text (str): Raw error or log text to classify.
+        latency_seconds (Optional[float]): Observed latency for the turn; used to detect timeouts.
+        timeout_seconds (float): Threshold (in seconds) at or above which latency is considered a timeout.
+    
+    Returns:
+        Optional[str]: A `FailureType` value string when a failure is inferred (`"timeout"`, `"unknown"`, or another taxonomy value); `None` if no failure can be determined.
+    """
 
     if latency_seconds is not None and latency_seconds >= timeout_seconds:
         return FailureType.TIMEOUT.value
@@ -115,7 +138,19 @@ def with_failure_type(
     latency_seconds: Optional[float] = None,
     timeout_seconds: float = 10.0,
 ) -> dict:
-    """Return turn metadata with a ``failure_type`` field added."""
+    """
+    Enrich a turn's metadata by ensuring a canonical `failure_type` is present.
+    
+    Parameters:
+        metadata (Mapping[str, object]): Original record metadata; a shallow copy is returned.
+        raw_text (str): Raw error or log text used to infer a failure type when not explicitly present.
+        latency_seconds (Optional[float]): Observed latency for the turn; if >= `timeout_seconds` it infers `timeout`.
+        timeout_seconds (float): Latency threshold (in seconds) used to infer a timeout failure.
+    
+    Returns:
+        dict: A shallow copy of `metadata` with the `failure_type` key set to the normalized explicit value if present,
+        otherwise to the inferred failure type (or `None` if neither applies).
+    """
 
     enriched = dict(metadata)
     explicit = normalize_failure_type(enriched.get("failure_type"))
@@ -124,15 +159,20 @@ def with_failure_type(
         latency_seconds=latency_seconds,
         timeout_seconds=timeout_seconds,
     )
-    if explicit and explicit != FailureType.UNKNOWN.value:
-        enriched["failure_type"] = explicit
-    else:
-        enriched["failure_type"] = inferred or explicit
+    enriched["failure_type"] = explicit or inferred
     return enriched
 
 
 def summarize_failure_types(records: Iterable[Mapping[str, object]]) -> dict[str, int]:
-    """Count non-empty failure types in trajectory-like records."""
+    """
+    Aggregate counts of normalized, non-empty `failure_type` values from an iterable of record mappings.
+    
+    Parameters:
+        records (Iterable[Mapping[str, object]]): Iterable of record-like mappings. Each record may contain a `"failure_type"` key whose value will be normalized and counted.
+    
+    Returns:
+        dict[str, int]: Mapping from canonical failure type string to its occurrence count, sorted by key.
+    """
 
     counts: Counter[str] = Counter()
     for record in records:

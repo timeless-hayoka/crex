@@ -23,6 +23,14 @@ class LocalMoETests(unittest.TestCase):
         self.assertEqual(len([count for count in counts.values() if count > 0]), 1)
 
     def test_top_two_route_executes_two_experts(self):
+        """
+        Verifies that routing with k=2 activates exactly two experts and that per-expert execution counts reflect two total executions.
+        
+        Asserts that:
+        - the router reports two active experts,
+        - the sum of all execution counts equals 2,
+        - exactly two experts have a positive execution count.
+        """
         router = LocalMoERouter(num_experts=6, dimension=4, seed=3)
         result = router.route(np.array([[0.2, -0.1, 0.7, 0.4]]), k=2)
         counts = router.execution_counts()
