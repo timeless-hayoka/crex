@@ -34,11 +34,15 @@ def synthetic_trajectory(seed: int = 42, turns: int = 50) -> list[dict[str, obje
     true_alpha = 0.000025
     records = []
 
-    with tempfile.NamedTemporaryFile(
+    tmp = tempfile.NamedTemporaryFile(
         prefix="drift_alpha_calibration_",
         suffix=".jsonl",
-    ) as calibration_log:
-        governor = CognitiveGovernor(calibration_log=Path(calibration_log.name))
+        delete=False,
+    )
+    try:
+        tmp.close()
+        calibration_log_path = Path(tmp.name)
+        governor = CognitiveGovernor(calibration_log=calibration_log_path)
 
         for turn in range(1, turns + 1):
             if turn > 20:
@@ -67,6 +71,8 @@ def synthetic_trajectory(seed: int = 42, turns: int = 50) -> list[dict[str, obje
                     "gate_applied": record.gate_applied,
                 }
             )
+    finally:
+        Path(tmp.name).unlink(missing_ok=True)
 
     return records
 

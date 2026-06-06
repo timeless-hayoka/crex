@@ -36,6 +36,8 @@ class AlphaCalibrationTests(unittest.TestCase):
         source = inspect.getsource(synthetic_trajectory)
 
         self.assertIn("NamedTemporaryFile", source)
+        self.assertIn("delete=False", source)
+        self.assertIn("tmp.close()", source)
         self.assertNotIn("/tmp/drift_alpha_calibration.jsonl", source)
 
     def test_calibration_runner_keeps_fixed_sample_floor(self):
