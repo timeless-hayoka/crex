@@ -124,7 +124,10 @@ def with_failure_type(
         latency_seconds=latency_seconds,
         timeout_seconds=timeout_seconds,
     )
-    enriched["failure_type"] = explicit or inferred
+    if explicit and explicit != FailureType.UNKNOWN.value:
+        enriched["failure_type"] = explicit
+    else:
+        enriched["failure_type"] = inferred or explicit
     return enriched
 
 

@@ -47,6 +47,22 @@ class FailureTaxonomyTests(unittest.TestCase):
         self.assertEqual(counts["timeout"], 1)
         self.assertEqual(counts["unknown"], 1)
 
+    def test_unknown_explicit_falls_back_to_inferred_failure(self):
+        enriched = with_failure_type(
+            {"failure_type": "not-a-real-type"},
+            raw_text="Coordination plugin instance not found",
+        )
+
+        self.assertEqual(enriched["failure_type"], FailureType.SEAM_NOT_FOUND.value)
+
+    def test_valid_explicit_failure_type_wins_over_inferred_failure(self):
+        enriched = with_failure_type(
+            {"failure_type": "timeout"},
+            raw_text="Coordination plugin instance not found",
+        )
+
+        self.assertEqual(enriched["failure_type"], FailureType.TIMEOUT.value)
+
 
 if __name__ == "__main__":
     unittest.main()
