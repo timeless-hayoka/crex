@@ -1,3 +1,4 @@
+import inspect
 import unittest
 
 from core.alpha_calibration import fit_alpha
@@ -30,6 +31,12 @@ class AlphaCalibrationTests(unittest.TestCase):
         self.assertEqual(len(records), 50)
         self.assertGreater(sum(1 for record in records if record["gate_applied"]), 0)
         self.assertEqual(result.verdict, "line_detected")
+
+    def test_synthetic_trajectory_uses_secure_temp_log(self):
+        source = inspect.getsource(synthetic_trajectory)
+
+        self.assertIn("NamedTemporaryFile", source)
+        self.assertNotIn("/tmp/drift_alpha_calibration.jsonl", source)
 
     def test_calibration_runner_keeps_fixed_sample_floor(self):
         short_result = calibrate_records(
