@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, Mapping, Optional
 
 
@@ -19,9 +19,15 @@ def as_timestamp(value: object) -> Optional[float]:
     except ValueError:
         pass
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+        return _to_utc(datetime.fromisoformat(text.replace("Z", "+00:00"))).timestamp()
     except ValueError:
         return None
+
+
+def _to_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def retrieval_count(metadata: Mapping[str, object]) -> int:
@@ -50,7 +56,7 @@ def build_retrieval_report(
     """Compute repeat-frequency and age-distribution metrics for memories."""
 
     metadata_list = [dict(metadata or {}) for metadata in metadatas]
-    now_ts = (now or datetime.now()).timestamp()
+    now_ts = _to_utc(now or datetime.now(timezone.utc)).timestamp()
 
     total_retrievals = 0
     retrieved = 0

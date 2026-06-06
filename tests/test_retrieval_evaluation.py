@@ -1,7 +1,7 @@
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-from core.retrieval_evaluation import build_retrieval_report
+from core.retrieval_evaluation import as_timestamp, build_retrieval_report
 
 
 class RetrievalEvaluationTests(unittest.TestCase):
@@ -38,6 +38,22 @@ class RetrievalEvaluationTests(unittest.TestCase):
         self.assertEqual(report["memory_age_distribution"]["31_90_days"], 1)
         self.assertEqual(report["memory_age_distribution"]["over_90_days"], 1)
         self.assertEqual(report["memory_age_distribution"]["unknown"], 1)
+
+    def test_naive_iso_datetimes_are_treated_as_utc(self):
+        now = datetime(2026, 6, 5, 12, 0, tzinfo=timezone.utc)
+        created = "2026-06-03T12:00:00"
+
+        self.assertEqual(
+            as_timestamp(created),
+            datetime(2026, 6, 3, 12, 0, tzinfo=timezone.utc).timestamp(),
+        )
+
+        report = build_retrieval_report(
+            [{"memory_id": "naive-iso", "created_at": created, "retrieval_count": 1}],
+            now=now,
+        )
+
+        self.assertEqual(report["memory_age_distribution"]["0_7_days"], 1)
 
 
 if __name__ == "__main__":
