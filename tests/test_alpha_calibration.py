@@ -1,7 +1,7 @@
 import unittest
 
 from core.alpha_calibration import fit_alpha
-from scripts.alpha_calibration_run import synthetic_trajectory
+from scripts.alpha_calibration_run import calibrate_records, synthetic_trajectory
 
 
 class AlphaCalibrationTests(unittest.TestCase):
@@ -30,6 +30,18 @@ class AlphaCalibrationTests(unittest.TestCase):
         self.assertEqual(len(records), 50)
         self.assertGreater(sum(1 for record in records if record["gate_applied"]), 0)
         self.assertEqual(result.verdict, "line_detected")
+
+    def test_calibration_runner_keeps_fixed_sample_floor(self):
+        short_result = calibrate_records(
+            [{"response_len": length, "delta_energy": 0.00002 * length} for length in range(1, 5)]
+        )
+        enough_result = calibrate_records(
+            [{"response_len": length, "delta_energy": 0.00002 * length} for length in range(100, 600, 25)]
+        )
+
+        self.assertEqual(short_result["verdict"], "insufficient_records:4/20")
+        self.assertIsNone(short_result["alpha"])
+        self.assertEqual(enough_result["verdict"], "line_detected")
 
 
 if __name__ == "__main__":

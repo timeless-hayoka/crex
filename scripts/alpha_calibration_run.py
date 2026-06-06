@@ -19,6 +19,9 @@ from core.sensor_initialization import initialize_sensors  # noqa: E402
 from core.roi_dashboard import load_jsonl_records  # noqa: E402
 
 
+MIN_ALPHA_SAMPLES = 20
+
+
 def synthetic_trajectory(seed: int = 42, turns: int = 50) -> list[dict[str, object]]:
     """Generate a gated calibration trajectory with no beta/recovery term."""
 
@@ -62,6 +65,20 @@ def synthetic_trajectory(seed: int = 42, turns: int = 50) -> list[dict[str, obje
     return records
 
 
+def calibrate_records(records: list[dict[str, object]]) -> dict[str, object]:
+    """Calibrate alpha only when the fixed sample floor is met."""
+
+    if len(records) < MIN_ALPHA_SAMPLES:
+        return {
+            "samples": len(records),
+            "alpha": None,
+            "correlation": None,
+            "r_squared": None,
+            "verdict": f"insufficient_records:{len(records)}/{MIN_ALPHA_SAMPLES}",
+        }
+    return fit_alpha(records, min_samples=MIN_ALPHA_SAMPLES).to_dict()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--trajectory-jsonl", type=Path, help="Optional real trajectory records")
@@ -84,7 +101,7 @@ def main() -> None:
             encoding="utf-8",
         )
 
-    result = fit_alpha(records, min_samples=min(20, len(records))).to_dict()
+    result = calibrate_records(records)
     print("=" * 72)
     print("ALPHA CALIBRATION: delta_energy = alpha * response_len + epsilon")
     print("=" * 72)
