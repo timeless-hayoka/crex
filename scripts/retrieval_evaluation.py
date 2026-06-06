@@ -40,6 +40,8 @@ def main() -> None:
         help="Optional JSON fixture with Chroma-style metadatas for offline analysis",
     )
     args = parser.parse_args()
+    if args.repeat_threshold < 1:
+        parser.error("repeat-threshold must be >= 1")
 
     if args.repeat_threshold < 1:
         parser.error("repeat-threshold must be >= 1")

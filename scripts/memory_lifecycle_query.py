@@ -61,7 +61,7 @@ def _retrieval_count(metadata: Mapping[str, object]) -> int:
             try:
                 return int(value)
             except (TypeError, ValueError):
-                return 0
+                continue
     return 0
 
 

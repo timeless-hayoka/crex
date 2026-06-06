@@ -39,6 +39,12 @@ class LocalMoETests(unittest.TestCase):
         self.assertEqual(sum(counts.values()), 2)
         self.assertEqual(len([count for count in counts.values() if count > 0]), 2)
 
+    def test_route_rejects_multi_row_batches(self):
+        router = LocalMoERouter(num_experts=4, dimension=4, seed=7)
+
+        with self.assertRaisesRegex(ValueError, "batch size 1"):
+            router.route(np.array([[0.1, 0.9, -0.4, 0.3], [0.2, 0.1, 0.0, -0.3]]), k=1)
+
     def test_speculative_tau_increases_with_acceptance(self):
         low = speculative_lookahead_tau(acceptance_rate=0.2, gamma=4)
         high = speculative_lookahead_tau(acceptance_rate=0.8, gamma=4)

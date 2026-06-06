@@ -18,28 +18,10 @@ from core.cognitive_governor import CognitiveGovernor  # noqa: E402
 
 
 def run_measurement(seed: int = 42, turns: int = 80) -> dict:
-    """
-    Simulate a synthetic closed-loop experiment against a CognitiveGovernor and return aggregated measurement statistics and parameter accuracy.
-    
-    Runs a two-phase experiment: a 30-turn calibration phase with fixed energy to fit an internal coupling parameter (`alpha`), then a stress phase (turns 31..turns) with lower energies where token gating may bind. Records per-turn outcomes to a temporary governor log, fits `alpha` from calibration data, computes an ungated counterfactual drain for stress turns, and augments the governor's measurements dictionary with true/fitted alpha values and derived counterfactual metrics.
-    
-    Parameters:
-    	seed (int): RNG seed used for sampling request lengths and noise.
-    	turns (int): Total number of simulated turns (must be at least 31 to include the 30-turn calibration).
-    
-    Returns:
-    	measurements (dict): A dictionary produced by governor.measurements().to_dict() augmented with:
-    		- "true_alpha": the ground-truth alpha used to generate drains.
-    		- "fitted_alpha_error": absolute error of the fitted alpha vs `true_alpha`, or `None`.
-    		- "counterfactual_ungated_stress_drain": mean ungated stress-phase drain (rounded to 8 decimals).
-    		- "counterfactual_gate_savings": difference between the ungated counterfactual and mean gated drain (rounded to 8 decimals), or `None` if mean gated drain is unavailable.
-    
-    Raises:
-    	ValueError: If `turns` is less than 31.
-    """
+    """Run a synthetic closed-loop check with known response-length coupling."""
 
     if turns <= 30:
-        raise ValueError("turns must be at least 31 to include calibration data")
+        raise ValueError("turns must be at least 31 to include calibration and stress data")
 
     rng = np.random.default_rng(seed)
     true_alpha = 0.000025

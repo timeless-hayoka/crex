@@ -60,6 +60,24 @@ class MemoryLifecycleQueryTests(unittest.TestCase):
         self.assertEqual(report["stale_ids"], ["stale-aware"])
         self.assertEqual(report["missing_last_accessed_count"], 0)
 
+    def test_poor_session_uses_shared_retrieval_count_fallbacks(self):
+        report = build_lifecycle_report(
+            [
+                {
+                    "memory_id": "poor-access-count",
+                    "last_accessed": "2026-06-03T12:00:00Z",
+                    "retrieval_count": "bad",
+                    "access_count": 3,
+                    "poor_session_retrievals": 3,
+                },
+            ],
+            now=datetime(2026, 6, 5, 12, 0, tzinfo=timezone.utc),
+            frequent_threshold=3,
+        )
+
+        self.assertEqual(report["frequently_retrieved_count"], 1)
+        self.assertEqual(report["frequent_only_poor_session_count"], 1)
+
     def test_load_json_accepts_chroma_style_metadatas_object(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             fixture = Path(tmp_dir) / "metadatas.json"

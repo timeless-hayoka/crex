@@ -159,6 +159,8 @@ class LocalMoERouter:
             vector = vector[None, :]
         if vector.ndim != 2 or vector.shape[1] != self.dimension:
             raise ValueError(f"input_vector must be shaped (batch, {self.dimension})")
+        if vector.shape[0] != 1:
+            raise ValueError("route only supports batch size 1")
         if not 1 <= k <= self.num_experts:
             raise ValueError("k must satisfy 1 <= k <= num_experts")
 
