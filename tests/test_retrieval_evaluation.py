@@ -1,7 +1,9 @@
+import subprocess
+import sys
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from core.retrieval_evaluation import as_timestamp, build_retrieval_report
+from core.retrieval_evaluation import as_timestamp, build_retrieval_report, retrieval_count
 
 
 class RetrievalEvaluationTests(unittest.TestCase):
@@ -35,6 +37,31 @@ class RetrievalEvaluationTests(unittest.TestCase):
         self.assertEqual(report["repeated_memory_count"], 1)
         self.assertEqual(report["memory_repeat_frequency"][0]["memory_id"], "repeat")
         self.assertEqual(report["memory_age_distribution"]["0_7_days"], 1)
+
+    def test_retrieval_count_skips_malformed_fallback_keys(self):
+        self.assertEqual(
+            retrieval_count({"retrieval_count": "bad", "access_count": 4}),
+            4,
+        )
+        self.assertEqual(retrieval_count({"retrieval_count": "bad"}), 0)
+
+    def test_retrieval_cli_rejects_nonpositive_repeat_threshold(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/retrieval_evaluation.py",
+                "--metadata-json",
+                "tests/fixtures/memory_metadatas.json",
+                "--repeat-threshold",
+                "0",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("repeat-threshold must be >= 1", result.stderr)
         self.assertEqual(report["memory_age_distribution"]["31_90_days"], 1)
         self.assertEqual(report["memory_age_distribution"]["over_90_days"], 1)
         self.assertEqual(report["memory_age_distribution"]["unknown"], 1)

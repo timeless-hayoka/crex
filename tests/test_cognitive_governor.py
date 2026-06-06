@@ -99,6 +99,10 @@ class CognitiveGovernorTests(unittest.TestCase):
         self.assertGreater(measurements["mean_gated_drain"], 0.0)
         self.assertLess(measurements["fitted_alpha_error"], 0.000002)
 
+    def test_measurement_runner_requires_stress_turns(self):
+        with self.assertRaisesRegex(ValueError, "at least 31"):
+            run_measurement(seed=7, turns=30)
+
 
 if __name__ == "__main__":
     unittest.main()
