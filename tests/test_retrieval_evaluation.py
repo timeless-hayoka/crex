@@ -37,6 +37,9 @@ class RetrievalEvaluationTests(unittest.TestCase):
         self.assertEqual(report["repeated_memory_count"], 1)
         self.assertEqual(report["memory_repeat_frequency"][0]["memory_id"], "repeat")
         self.assertEqual(report["memory_age_distribution"]["0_7_days"], 1)
+        self.assertEqual(report["memory_age_distribution"]["31_90_days"], 1)
+        self.assertEqual(report["memory_age_distribution"]["over_90_days"], 1)
+        self.assertEqual(report["memory_age_distribution"]["unknown"], 1)
 
     def test_retrieval_count_skips_malformed_fallback_keys(self):
         self.assertEqual(
@@ -62,9 +65,6 @@ class RetrievalEvaluationTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("repeat-threshold must be >= 1", result.stderr)
-        self.assertEqual(report["memory_age_distribution"]["31_90_days"], 1)
-        self.assertEqual(report["memory_age_distribution"]["over_90_days"], 1)
-        self.assertEqual(report["memory_age_distribution"]["unknown"], 1)
 
     def test_naive_iso_datetimes_are_treated_as_utc(self):
         now = datetime(2026, 6, 5, 12, 0, tzinfo=timezone.utc)
