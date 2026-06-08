@@ -78,7 +78,7 @@ class DIITracker:
         Indicates whether the tracker has recorded at least one reading.
         
         Returns:
-            `true` if at least one reading exists, `false` otherwise.
+            `True` if at least one reading exists, `False` otherwise.
         """
         with self._lock:
             return bool(self._readings)
