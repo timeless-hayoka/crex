@@ -55,7 +55,7 @@ def _calculate_safe_token_limit(current_energy: float) -> int:
     Selects a conservative token budget based on the provided energy snapshot using stepped thresholds.
     
     Parameters:
-        current_energy (float): Energy telemetry value (expected 0.0–1.0). Invalid or out-of-range values cause the function to choose the `HOLD` budget.
+        current_energy (float): Energy telemetry value (expected 0.0-1.0). Invalid or out-of-range values cause the function to choose the `HOLD` budget.
     
     Returns:
         int: The `max_tokens` for the selected energy mode (`HOLD`, `CRITICAL`, `LOW_POWER`, `MODERATE`, or `NORMAL`).
