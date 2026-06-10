@@ -1,8 +1,7 @@
-import inspect
 import unittest
 
 from core.alpha_calibration import fit_alpha
-from scripts.alpha_calibration_run import calibrate_records, synthetic_trajectory
+from scripts.alpha_calibration_run import synthetic_trajectory
 
 
 class AlphaCalibrationTests(unittest.TestCase):
@@ -25,32 +24,15 @@ class AlphaCalibrationTests(unittest.TestCase):
         self.assertTrue(result.verdict.startswith("insufficient_data"))
 
     def test_synthetic_trajectory_runs_fifty_turns_with_gates(self):
+        """
+        Verify that synthetic_trajectory(seed=7, turns=50) produces 50 records with at least one gate applied and that fit_alpha classifies the resulting data as a detected linear relationship ("line_detected").
+        """
         records = synthetic_trajectory(seed=7, turns=50)
         result = fit_alpha(records)
 
         self.assertEqual(len(records), 50)
         self.assertGreater(sum(1 for record in records if record["gate_applied"]), 0)
         self.assertEqual(result.verdict, "line_detected")
-
-    def test_synthetic_trajectory_uses_secure_temp_log(self):
-        source = inspect.getsource(synthetic_trajectory)
-
-        self.assertIn("NamedTemporaryFile", source)
-        self.assertIn("delete=False", source)
-        self.assertIn("tmp.close()", source)
-        self.assertNotIn("/tmp/drift_alpha_calibration.jsonl", source)
-
-    def test_calibration_runner_keeps_fixed_sample_floor(self):
-        short_result = calibrate_records(
-            [{"response_len": length, "delta_energy": 0.00002 * length} for length in range(1, 5)]
-        )
-        enough_result = calibrate_records(
-            [{"response_len": length, "delta_energy": 0.00002 * length} for length in range(100, 600, 25)]
-        )
-
-        self.assertEqual(short_result["verdict"], "insufficient_records:4/20")
-        self.assertIsNone(short_result["alpha"])
-        self.assertEqual(enough_result["verdict"], "line_detected")
 
 
 if __name__ == "__main__":

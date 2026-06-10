@@ -18,6 +18,11 @@ class DIITrackerTests(unittest.TestCase):
         self.assertNotEqual(tracker.get_current(), 0.5)
 
     def test_tracker_variance_after_distinct_interactions(self):
+        """
+        Verify that a DIITracker reports positive variance after two distinct interactions.
+        
+        Calls update_from_interaction with two different messages and asserts that tracker.variance() is greater than 0.0.
+        """
         tracker = DIITracker()
         tracker.update_from_interaction("Short baseline.")
         tracker.update_from_interaction(

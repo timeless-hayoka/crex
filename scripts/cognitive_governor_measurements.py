@@ -84,10 +84,18 @@ def run_measurement(seed: int = 42, turns: int = 80) -> dict:
 
 
 def main() -> None:
+    """
+    Command-line entry point that runs the measurement simulation and prints a human-readable report followed by the full JSON results.
+    
+    Parses `--seed` and `--turns` CLI arguments, validates that `turns` is at least 31, invokes `run_measurement` with the parsed values, and prints a formatted summary of key measurement fields (mode distribution, gated/ungated response and drain means, gate savings, intervention failures, and fitted alpha) followed by the complete measurements object as JSON.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--turns", type=int, default=80)
     args = parser.parse_args()
+
+    if args.turns <= 30:
+        parser.error("turns must be at least 31 to include calibration data")
 
     measurements = run_measurement(seed=args.seed, turns=args.turns)
 

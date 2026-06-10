@@ -11,6 +11,16 @@ from scripts.cognitive_governor_measurements import run_measurement
 
 class CognitiveGovernorTests(unittest.TestCase):
     def test_energy_thresholds_and_invalid_sensor_hold(self):
+        """
+        Verify that CognitiveGovernor maps energy readings to expected modes, max token limits, and interventions, and that an invalid (NaN) sensor reading produces a HOLD with the appropriate intervention.
+        
+        Specifically:
+        - Energy 1.0 -> mode "NORMAL", max_tokens 1000, and gate_applied is False.
+        - Energy 0.45 -> mode "MODERATE", max_tokens 700.
+        - Energy 0.299 -> mode "LOW_POWER", max_tokens 400, and "TOKEN_GATE" is present in interventions.
+        - Energy 0.149 -> mode "CRITICAL", max_tokens 150.
+        - Energy NaN -> mode "HOLD", max_tokens 80, and "ENERGY_SENSOR_INVALID" is present in interventions.
+        """
         with tempfile.TemporaryDirectory() as tmp_dir:
             gov = CognitiveGovernor(calibration_log=Path(tmp_dir) / "calibration.jsonl")
 

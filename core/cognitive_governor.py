@@ -51,7 +51,15 @@ ENERGY_THRESHOLDS = {
 
 
 def _calculate_safe_token_limit(current_energy: float) -> int:
-    """Stepped token gate based on current energetic state."""
+    """
+    Selects a conservative token budget based on the provided energy snapshot using stepped thresholds.
+    
+    Parameters:
+        current_energy (float): Energy telemetry value (expected 0.0-1.0). Invalid or out-of-range values cause the function to choose the `HOLD` budget.
+    
+    Returns:
+        int: The `max_tokens` for the selected energy mode (`HOLD`, `CRITICAL`, `LOW_POWER`, `MODERATE`, or `NORMAL`).
+    """
 
     if not CognitiveGovernor._valid_energy(current_energy):
         return int(ENERGY_MODES["HOLD"]["max_tokens"])
@@ -112,6 +120,12 @@ class GovernorMeasurements:
     fitted_alpha: Optional[float]
 
     def to_dict(self) -> Dict[str, object]:
+        """
+        Return a plain dictionary representation of the measurements suitable for serialization.
+        
+        Returns:
+            Dict[str, object]: A dictionary containing the dataclass fields and their values.
+        """
         return asdict(self)
 
 
@@ -129,6 +143,13 @@ class CognitiveGovernor:
         calibration_log: str | Path = "logs/governor_calibration.jsonl",
         energy_min: float = 0.10,
     ) -> None:
+        """
+        Initialize the CognitiveGovernor, preparing thread-safe state, storage for turn records, and the calibration log file.
+        
+        Parameters:
+        	calibration_log (str | Path): Path to the JSONL calibration log file; parent directories will be created if missing.
+        	energy_min (float): Minimum energy threshold below which an energy-min-reached intervention is triggered; stored as a float.
+        """
         self._lock = threading.Lock()
         self._current_mode = "NORMAL"
         self._turn_records: List[TurnRecord] = []
@@ -139,10 +160,16 @@ class CognitiveGovernor:
         self._intervention_failures = 0
 
     def apply(self, current_energy: float, turn: int) -> GateResult:
-        """Evaluate energy state and return behavioral constraints.
-
-        Call this before inference. Pass ``GateResult.max_tokens`` to the
-        generation API and persist ``GateResult.interventions`` with turn logs.
+        """
+        Compute a token budget and intervention audit for the given energy snapshot.
+        
+        Parameters:
+            current_energy (float): Energy telemetry value in [0.0, 1.0] used to select an energy mode.
+            turn (int): Turn index associated with this decision; copied into the returned GateResult.
+        
+        Returns:
+            GateResult: Decision containing `max_tokens`, `energy_mode`, `mode_entered`, `interventions`,
+            `gate_applied`, `energy_snapshot`, and `turn`.
         """
 
         with self._lock:
@@ -183,7 +210,20 @@ class CognitiveGovernor:
         response_len: int,
         gate_result: Optional[GateResult] = None,
     ) -> TurnRecord:
-        """Append causal event data for calibration and intervention checks."""
+        """
+        Record a single turn's energy telemetry, persist it to the calibration log, and run closed-loop intervention verification.
+        
+        Parameters:
+            prev_energy (float): Energy level observed before the turn.
+            new_energy (float): Energy level observed after the turn.
+            response_len (int): Response length (tokens) produced on the turn; negative values are clamped to 0.
+            gate_result (Optional[GateResult]): Optional governor decision produced by `apply`; when provided, its fields
+                (turn, gate_applied, energy_mode, interventions, max_tokens) are copied into the saved record.
+        
+        Returns:
+            TurnRecord: Immutable record containing the turn index, energies, delta_energy, clamped response_len,
+            gating metadata, interventions list, max_tokens, and timestamp.
+        """
 
         delta = float(prev_energy) - float(new_energy)
         record = TurnRecord(
@@ -206,7 +246,17 @@ class CognitiveGovernor:
         return record
 
     def calibrate_alpha(self, min_samples: int = 20) -> Optional[float]:
-        """Fit ``energy_drain = alpha * response_len`` from ungated turns."""
+        """
+        Fit an energy-per-response-length coefficient `alpha` from ungated turn records.
+        
+        Attempts to estimate `alpha` in the relation `delta_energy ≈ alpha * response_len` using recorded turns where no token gate was applied. Requires at least `min_samples` ungated records and sufficient variance in `response_len`. On success the fitted alpha is stored on the instance and an `ALPHA_CALIBRATED` event is appended to the calibration log.
+        
+        Parameters:
+            min_samples (int): Minimum number of ungated turns required to perform calibration.
+        
+        Returns:
+            Optional[float]: The fitted `alpha` value if calibration succeeded, `None` otherwise.
+        """
 
         with self._lock:
             records = [r for r in self._turn_records if not r.gate_applied]
@@ -257,7 +307,14 @@ class CognitiveGovernor:
         return alpha
 
     def measurements(self) -> GovernorMeasurements:
-        """Return closed-loop measurements for gate impact and drift analysis."""
+        """
+        Aggregate measurements describing gate impact, energy-drain statistics, and calibration state.
+        
+        Computes counts of turns (gated and ungated), mean drain per turn, mean gated/ungated drains, mean response lengths, an estimated savings from gating when both gated and ungated means are available, the distribution of energy modes observed, the count of intervention failures, and the currently fitted alpha (if any). If no turn records exist, returns a measurement object with zero counts and appropriate None values for statistics that cannot be computed.
+        
+        Returns:
+            GovernorMeasurements: Aggregated measurements for gate impact and drift analysis, including `fitted_alpha` (or `None`) and `intervention_failures`.
+        """
 
         with self._lock:
             records = list(self._turn_records)
@@ -312,7 +369,12 @@ class CognitiveGovernor:
         )
 
     def summary(self) -> Dict[str, object]:
-        """Quick health check for trajectory analysis."""
+        """
+        Provide a summary of governor measurements including a status indicator.
+        
+        Returns:
+            summary (Dict[str, object]): If no turns have been recorded returns {"status": "no data", "turns": 0}. Otherwise returns the measurements dictionary (as produced by `measurements().to_dict()`) with an added `"status": "ok"` entry.
+        """
 
         measurements = self.measurements().to_dict()
         if measurements["turns"] == 0:
@@ -321,6 +383,18 @@ class CognitiveGovernor:
         return measurements
 
     def _compute_mode(self, energy: float) -> str:
+        """
+        Selects an energy mode label based on the provided energy level.
+        
+        For invalid energy values this returns `HOLD`. For valid energies, the mapping is:
+        - `energy <= 0.15` -> `CRITICAL`
+        - `energy <= 0.30` -> `LOW_POWER`
+        - `energy <= 0.50` -> `MODERATE`
+        - otherwise -> `NORMAL`
+        
+        Returns:
+            str: `HOLD` if the energy is invalid, otherwise one of `CRITICAL`, `LOW_POWER`, `MODERATE`, or `NORMAL`.
+        """
         if not self._valid_energy(energy):
             return "HOLD"
 
@@ -333,7 +407,11 @@ class CognitiveGovernor:
         return "NORMAL"
 
     def _verify_intervention(self, record: TurnRecord) -> None:
-        """Closed-loop check: if gated, was drain below calibrated expectation?"""
+        """
+        Check whether token gating reduced energy drain as predicted by the fitted model.
+        
+        If a token gate was applied and alpha has been fitted, compares actual energy drain against the expected drain based on the calibrated coefficient. Increments the failure counter if actual drain exceeds the expected value by more than 20%.
+        """
 
         if not record.gate_applied or self._fitted_alpha is None:
             return
@@ -355,6 +433,14 @@ class CognitiveGovernor:
             )
 
     def _append_calibration_log(self, record: TurnRecord) -> None:
+        """
+        Append a single TURN event to the governor's calibration JSONL log.
+        
+        The function serializes selected fields from the provided TurnRecord (rounding numeric energy values) into a dictionary with keys: "event", "timestamp", "turn", "prev_energy", "new_energy", "delta_energy", "response_len", "gate_applied", "energy_mode", "max_tokens", and "interventions", then appends that entry to the configured calibration log.
+        
+        Parameters:
+            record (TurnRecord): The turn record whose fields will be persisted to the calibration log.
+        """
         entry = {
             "event": "TURN",
             "timestamp": record.timestamp,
@@ -371,16 +457,38 @@ class CognitiveGovernor:
         self._append_json(entry)
 
     def _append_event(self, event: Dict[str, object]) -> None:
+        """
+        Append a timestamped event to the governor's calibration log.
+        
+        Adds a current-timestamp field to the provided event mapping and writes it as a JSON line to the configured calibration log.
+        
+        Parameters:
+            event (Dict[str, object]): Mapping describing the event; may contain any serializable fields. The function will add a `"timestamp"` key if not present.
+        """
         event = dict(event)
         event["timestamp"] = time.time()
         self._append_json(event)
 
     def _append_json(self, entry: Dict[str, object]) -> None:
+        """
+        Append a dictionary as a single JSON line to the governor's calibration log file.
+        
+        Opens the configured calibration log in append mode with UTF-8 encoding, writes the JSON-serialized `entry` with keys sorted, and terminates the line with a newline character.
+        
+        Parameters:
+            entry (Dict[str, object]): The mapping to serialize and append as a JSONL record.
+        """
         with self._calibration_log.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry, sort_keys=True) + "\n")
 
     @staticmethod
     def _valid_energy(energy: float) -> bool:
+        """
+        Check whether a value is a valid energy fraction within 0.0 to 1.0 inclusive.
+        
+        Returns:
+            `True` if `energy` can be converted to a finite float between 0.0 and 1.0 inclusive, `False` otherwise.
+        """
         try:
             value = float(energy)
         except (TypeError, ValueError):
@@ -389,13 +497,30 @@ class CognitiveGovernor:
 
     @staticmethod
     def _mean(values: List[float] | List[int], digits: int = 8) -> Optional[float]:
+        """
+        Compute the arithmetic mean of a sequence of numbers, rounded to a specified number of decimal digits.
+        
+        Parameters:
+            values (List[float] | List[int]): Sequence of numeric values to average.
+            digits (int): Number of decimal digits to round the result to (default 8).
+        
+        Returns:
+            Optional[float]: Rounded mean of the values, or `None` if `values` is empty.
+        """
         if not values:
             return None
         return round(float(sum(values) / len(values)), digits)
 
 
 def _self_check() -> bool:
-    """Prove gate contracts, calibration, and verification paths."""
+    """
+    Run deterministic self-checks that exercise gating behavior, calibration, and verification paths.
+    
+    Performs a sequence of assertions against the governor's mode selection, token gating, turn recording, and alpha calibration to validate expected behavior.
+    
+    Returns:
+        bool: `True` if all checks pass, `False` if any assertion fails.
+    """
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp = Path(tmp_dir) / "governor_calibration.jsonl"

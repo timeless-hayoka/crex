@@ -16,6 +16,20 @@ from scripts.memory_lifecycle_query import load_chroma_metadatas, load_json_meta
 
 
 def main() -> None:
+    """
+    CLI entry point that builds and prints a retrieval report containing repetition and memory-age metrics.
+    
+    Parses command-line options:
+    - --path: ChromaDB persistent path (default "data/chroma").
+    - --collection: Chroma collection name (default "drift_memory").
+    - --repeat-threshold: Integer threshold used to classify repeated memories (default 5).
+    - --metadata-json: Optional Path to a JSON fixture of Chroma-style metadatas for offline analysis.
+    
+    Loads metadatas from the provided JSON fixture when given, otherwise from ChromaDB using the provided path and collection, then builds a retrieval report and prints:
+    - a summary line with repeated memory count and threshold,
+    - the retrieved memory ratio,
+    - the full report as pretty-printed JSON to standard output.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", default="data/chroma", help="ChromaDB persistent path")
     parser.add_argument("--collection", default="drift_memory", help="Chroma collection name")
@@ -26,6 +40,9 @@ def main() -> None:
         help="Optional JSON fixture with Chroma-style metadatas for offline analysis",
     )
     args = parser.parse_args()
+    if args.repeat_threshold < 1:
+        parser.error("repeat-threshold must be >= 1")
+
     if args.repeat_threshold < 1:
         parser.error("repeat-threshold must be >= 1")
 

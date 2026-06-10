@@ -20,78 +20,76 @@ from core.sensor_initialization import initialize_sensors  # noqa: E402
 from core.roi_dashboard import load_jsonl_records  # noqa: E402
 
 
-MIN_ALPHA_SAMPLES = 20
-
-
 def synthetic_trajectory(seed: int = 42, turns: int = 50) -> list[dict[str, object]]:
-    """Generate a gated calibration trajectory with no beta/recovery term."""
+    """
+    Generate a synthetic gated calibration trajectory used for estimating alpha.
+    
+    Parameters:
+        seed (int): RNG seed for reproducible synthetic data.
+        turns (int): Number of turns to simulate; must be at least 20.
+    
+    Returns:
+        list[dict[str, object]]: A list of per-turn record dictionaries. Each record contains:
+            - "turn": turn number (int)
+            - "prev_energy": energy before the turn (float)
+            - "new_energy": energy after the turn (float)
+            - "delta_energy": change in energy (float)
+            - "response_len": tokens produced that turn (int)
+            - "energy_mode": governor-reported energy mode (str)
+            - "max_tokens": governor-reported max token allowance (int)
+            - "gate_applied": details of the gate decision (object)
+    """
 
     if turns < 20:
         raise ValueError("turns must be at least 20 for calibration")
 
     rng = np.random.default_rng(seed)
+    # Create secure temporary file with restrictive permissions
+    fd, temp_path = tempfile.mkstemp(suffix=".jsonl", prefix="drift_alpha_calibration_")
+    import os
+    os.close(fd)  # Close the file descriptor, CognitiveGovernor will open it
+    governor = CognitiveGovernor(calibration_log=Path(temp_path))
     energy = 0.82
     true_alpha = 0.000025
     records = []
 
-    tmp = tempfile.NamedTemporaryFile(
-        prefix="drift_alpha_calibration_",
-        suffix=".jsonl",
-        delete=False,
-    )
-    try:
-        tmp.close()
-        calibration_log_path = Path(tmp.name)
-        governor = CognitiveGovernor(calibration_log=calibration_log_path)
-
-        for turn in range(1, turns + 1):
-            if turn > 20:
-                energy = min(energy, 0.48 if turn % 3 else 0.24)
-            gate = governor.apply(energy, turn=turn)
-            requested_len = int(rng.integers(80, 1300))
-            response_len = min(requested_len, gate.max_tokens)
-            drain = max(0.0, true_alpha * response_len + float(rng.normal(0.0, 0.00025)))
-            prev_energy = energy
-            energy = max(0.02, energy - drain)
-            record = governor.record_turn(
-                prev_energy=prev_energy,
-                new_energy=energy,
-                response_len=response_len,
-                gate_result=gate,
-            )
-            records.append(
-                {
-                    "turn": record.turn,
-                    "prev_energy": record.prev_energy,
-                    "new_energy": record.new_energy,
-                    "delta_energy": record.delta_energy,
-                    "response_len": record.response_len,
-                    "energy_mode": record.energy_mode,
-                    "max_tokens": record.max_tokens,
-                    "gate_applied": record.gate_applied,
-                }
-            )
-    finally:
-        Path(tmp.name).unlink(missing_ok=True)
+    for turn in range(1, turns + 1):
+        if turn > 20:
+            energy = min(energy, 0.48 if turn % 3 else 0.24)
+        gate = governor.apply(energy, turn=turn)
+        requested_len = int(rng.integers(80, 1300))
+        response_len = min(requested_len, gate.max_tokens)
+        drain = max(0.0, true_alpha * response_len + float(rng.normal(0.0, 0.00025)))
+        prev_energy = energy
+        energy = max(0.02, energy - drain)
+        record = governor.record_turn(
+            prev_energy=prev_energy,
+            new_energy=energy,
+            response_len=response_len,
+            gate_result=gate,
+        )
+        records.append(
+            {
+                "turn": record.turn,
+                "prev_energy": record.prev_energy,
+                "new_energy": record.new_energy,
+                "delta_energy": record.delta_energy,
+                "response_len": record.response_len,
+                "energy_mode": record.energy_mode,
+                "max_tokens": record.max_tokens,
+                "gate_applied": record.gate_applied,
+            }
+        )
 
     return records
 
 
-def calibrate_records(records: list[dict[str, object]]) -> dict[str, object]:
-    """Calibrate alpha only when the fixed sample floor is met."""
-
-    if len(records) < MIN_ALPHA_SAMPLES:
-        return {
-            "samples": len(records),
-            "alpha": None,
-            "correlation": None,
-            "r_squared": None,
-            "verdict": f"insufficient_records:{len(records)}/{MIN_ALPHA_SAMPLES}",
-        }
-    return fit_alpha(records, min_samples=MIN_ALPHA_SAMPLES).to_dict()
-
-
 def main() -> None:
+    """
+    Run the CLI for alpha calibration: load or generate trajectory records, fit an alpha model, and print results.
+    
+    Parses command-line arguments, initializes sensors, and either loads real trajectory records from --trajectory-jsonl or generates synthetic records using --turns and --seed. If --output is provided, writes the records as JSONL to the given path. Exits with status code 1 if fewer than 20 records are available. Fits the alpha calibration with a 20-sample minimum and prints a short metrics summary followed by the full JSON result.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--trajectory-jsonl", type=Path, help="Optional real trajectory records")
     parser.add_argument("--turns", type=int, default=50)
@@ -113,7 +111,12 @@ def main() -> None:
             encoding="utf-8",
         )
 
-    result = calibrate_records(records)
+    # Validate minimum sample size
+    if len(records) < 20:
+        print(f"Error: Insufficient data - only {len(records)} records, need at least 20", file=sys.stderr)
+        sys.exit(1)
+
+    result = fit_alpha(records, min_samples=20).to_dict()
     print("=" * 72)
     print("ALPHA CALIBRATION: delta_energy = alpha * response_len + epsilon")
     print("=" * 72)

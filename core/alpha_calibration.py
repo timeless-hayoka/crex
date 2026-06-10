@@ -18,11 +18,37 @@ class AlphaCalibrationResult:
     verdict: str
 
     def to_dict(self) -> dict[str, object]:
+        """
+        Convert the dataclass to a dictionary mapping field names to their values.
+        
+        Returns:
+            dict[str, object]: A dictionary where keys are the dataclass field names and values are the corresponding field values.
+        """
         return asdict(self)
 
 
 def fit_alpha(records: Iterable[Mapping[str, object]], min_samples: int = 20) -> AlphaCalibrationResult:
-    """Fit ``delta_energy = alpha * response_len`` with no intercept."""
+    """
+    Estimate the slope (alpha) of a no-intercept linear relationship between response length and observed energy drain.
+    
+    Parses an iterable of record mappings to extract numeric `response_len` and `delta_energy` (or derives `delta_energy` from `prev_energy - new_energy`), filters out invalid or non-finite entries, and fits the model `delta_energy = alpha * response_len` using least squares with no intercept. The function also computes Pearson correlation and an R² based on residuals and returns a verdict indicating fit quality.
+    
+    Parameters:
+        records (Iterable[Mapping[str, object]]): Iterable of mapping-like records. Each record must contain a numeric `"response_len"` and either `"delta_energy"` or both `"prev_energy"` and `"new_energy"`.
+        min_samples (int): Minimum number of valid records required to attempt fitting. If the cleaned sample count is less than this, no fit is performed.
+    
+    Returns:
+        AlphaCalibrationResult: Dataclass with fields:
+            - samples: number of cleaned records used,
+            - alpha: fitted slope or `None` if fitting was not performed,
+            - correlation: Pearson correlation between `response_len` and `delta_energy` or `None` if not finite,
+            - r_squared: residual-based R² for the no-intercept fit or `None` when not computable,
+            - verdict: one of:
+                - `"insufficient_data:<actual>/<min_samples>"` when sample count is below `min_samples`,
+                - `"no_response_length_variance"` when response lengths lack required variance,
+                - `"line_detected"` when a finite correlation with absolute value >= 0.70 was found,
+                - `"shotgun_blast"` otherwise.
+    """
 
     clean_records = []
     for record in records:
