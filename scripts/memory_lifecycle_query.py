@@ -127,6 +127,9 @@ def build_lifecycle_report(
 
     metadata_list = [dict(metadata or {}) for metadata in metadatas]
     now = now or datetime.now()
+    if now.tzinfo is None:
+        from datetime import timezone
+        now = now.replace(tzinfo=timezone.utc)
     cutoff = (now - timedelta(days=stale_days)).timestamp()
 
     missing_last_accessed = []

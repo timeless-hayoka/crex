@@ -158,7 +158,7 @@ def build_roi_dashboard(records: Iterable[Mapping[str, object]]) -> list[dict[st
             ).to_dict()
         )
 
-    return sorted(rows, key=lambda row: (row["benefit_label"] == "unknown", row["subsystem"]))
+    return sorted(rows, key=lambda row: (not (row["benefit_label"] == "unknown"), row["subsystem"]))
 
 
 def load_jsonl_records(path: Path) -> list[Mapping[str, object]]:

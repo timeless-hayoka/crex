@@ -234,7 +234,7 @@ def speculative_lookahead_tau(acceptance_rate: float, gamma: int) -> float:
 
 def vector_from_dii_summary(summary: dict[str, object]) -> np.ndarray:
     """
-    Construct a 1×4 router feature vector from a DII summary dictionary.
+    Construct a 1x4 router feature vector from a DII summary dictionary.
     
     Parameters:
     	summary (dict[str, object]): Source values for the vector. Recognized keys:

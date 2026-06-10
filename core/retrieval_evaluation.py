@@ -100,7 +100,7 @@ def build_retrieval_report(
     """
 
     metadata_list = [dict(metadata or {}) for metadata in metadatas]
-    now_dt = now or datetime.now()
+    now_dt = now or datetime.now(timezone.utc)
     if now_dt.tzinfo is None:
         now_dt = now_dt.replace(tzinfo=timezone.utc)
     now_ts = now_dt.timestamp()

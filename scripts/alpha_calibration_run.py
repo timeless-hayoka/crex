@@ -48,40 +48,44 @@ def synthetic_trajectory(seed: int = 42, turns: int = 50) -> list[dict[str, obje
     fd, temp_path = tempfile.mkstemp(suffix=".jsonl", prefix="drift_alpha_calibration_")
     import os
     os.close(fd)  # Close the file descriptor, CognitiveGovernor will open it
-    governor = CognitiveGovernor(calibration_log=Path(temp_path))
-    energy = 0.82
-    true_alpha = 0.000025
-    records = []
 
-    for turn in range(1, turns + 1):
-        if turn > 20:
-            energy = min(energy, 0.48 if turn % 3 else 0.24)
-        gate = governor.apply(energy, turn=turn)
-        requested_len = int(rng.integers(80, 1300))
-        response_len = min(requested_len, gate.max_tokens)
-        drain = max(0.0, true_alpha * response_len + float(rng.normal(0.0, 0.00025)))
-        prev_energy = energy
-        energy = max(0.02, energy - drain)
-        record = governor.record_turn(
-            prev_energy=prev_energy,
-            new_energy=energy,
-            response_len=response_len,
-            gate_result=gate,
-        )
-        records.append(
-            {
-                "turn": record.turn,
-                "prev_energy": record.prev_energy,
-                "new_energy": record.new_energy,
-                "delta_energy": record.delta_energy,
-                "response_len": record.response_len,
-                "energy_mode": record.energy_mode,
-                "max_tokens": record.max_tokens,
-                "gate_applied": record.gate_applied,
-            }
-        )
+    try:
+        governor = CognitiveGovernor(calibration_log=Path(temp_path))
+        energy = 0.82
+        true_alpha = 0.000025
+        records = []
 
-    return records
+        for turn in range(1, turns + 1):
+            if turn > 20:
+                energy = min(energy, 0.48 if turn % 3 else 0.24)
+            gate = governor.apply(energy, turn=turn)
+            requested_len = int(rng.integers(80, 1300))
+            response_len = min(requested_len, gate.max_tokens)
+            drain = max(0.0, true_alpha * response_len + float(rng.normal(0.0, 0.00025)))
+            prev_energy = energy
+            energy = max(0.02, energy - drain)
+            record = governor.record_turn(
+                prev_energy=prev_energy,
+                new_energy=energy,
+                response_len=response_len,
+                gate_result=gate,
+            )
+            records.append(
+                {
+                    "turn": record.turn,
+                    "prev_energy": record.prev_energy,
+                    "new_energy": record.new_energy,
+                    "delta_energy": record.delta_energy,
+                    "response_len": record.response_len,
+                    "energy_mode": record.energy_mode,
+                    "max_tokens": record.max_tokens,
+                    "gate_applied": record.gate_applied,
+                }
+            )
+
+        return records
+    finally:
+        Path(temp_path).unlink(missing_ok=True)
 
 
 def main() -> None:

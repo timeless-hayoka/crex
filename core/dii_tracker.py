@@ -51,7 +51,7 @@ class DIITracker:
             text (str): Interaction text to score. `None` or an empty string is treated as no words.
         
         Returns:
-            float: The computed DII score for the provided text (clamped to the range 0.0–1.0).
+            float: The computed DII score for the provided text (clamped to the range 0.0-1.0).
         """
         reading = DIIReading(
             value=self._score_interaction(text),
